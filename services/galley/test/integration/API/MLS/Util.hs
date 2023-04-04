@@ -628,9 +628,9 @@ createExternalCommit qcid mpgs qcs = do
     mlscli
       qcid
       [ "external-commit",
-        "--group-state-in",
+        "--group-info-in",
         "-",
-        "--group-state-out",
+        "--group-info-out",
         pgsFile,
         "--group-out",
         "<group-out>"
@@ -754,7 +754,7 @@ createPendingProposalCommit qcid = do
         "<group-out>",
         "--welcome-out",
         welcomeFile,
-        "--group-state-out",
+        "--group-info-out",
         pgsFile
       ]
       Nothing
@@ -797,7 +797,7 @@ createRemoveCommit cid _targets = do
           "<group-out>",
           "--welcome-out",
           welcomeFile,
-          "--group-state-out",
+          "--group-info-out",
           pgsFile
         ]
           <> map show indices
