@@ -15,8 +15,9 @@
 -- You should have received a copy of the GNU Affero General Public License along
 -- with this program. If not, see <https://www.gnu.org/licenses/>.
 
-module Wire.API.MLS.CommitBundle where
+module Wire.API.MLS.CommitBundle (CommitBundle (..)) where
 
+import Control.Applicative
 import Control.Lens (view, (.~), (?~))
 import Data.Bifunctor (first)
 import qualified Data.ByteString as BS
@@ -34,11 +35,49 @@ import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
 
 data CommitBundle = CommitBundle
-  { cbCommitMsg :: RawMLS Message,
+  { cbCommitMsg :: RawMLS Message, -- TODO: change this type to Commit
     cbWelcome :: Maybe (RawMLS Welcome),
     cbGroupInfoBundle :: GroupInfoBundle
   }
   deriving (Eq, Show)
+
+data CommitBundleF f = CommitBundleF
+  { cbCommitMsg :: f (RawMLS Message),
+    cbWelcome :: f (RawMLS Welcome),
+    cbGroupInfoBundle :: f GroupInfoBundle
+  }
+
+checkCommitBundleF :: CommitBundleF [] -> Either Text CommitBundle
+checkCommitBundleF cb =
+  CommitBundle
+    <$> check "commit" cb.cbCommitMsg
+    <*> checkOpt "welcome" cb.cbWelcome
+    <*> check "group info" cb.cbGroupInfoBundle
+  where
+    check :: Text -> [a] -> Either Text a
+    check _ [x] = pure x
+    check name [] = Left ("Missing " <> name)
+    check name _ = Left ("Redundant occurrence of " <> name)
+
+    checkOpt :: Text -> [a] -> Either Text (Maybe a)
+    checkOpt _ [] = pure Nothing
+    checkOpt _ [x] = pure (Just x)
+    checkOpt name _ = Left ("Redundant occurrence of " <> name)
+
+findMessageInStream :: RawMLS Message -> Either Text (CommitBundleF f)
+findMessageInStream msg = case msg.rmValue.content of
+  MessagePublic mp -> case mp.content.rmValue.content of
+    FramedContentCommit _ -> pure (CommitBundleF (pure msg) empty empty)
+    _ -> Left "unexpected public message"
+  MessageWelcome w -> pure (CommitBundleF empty (pure w) empty)
+  MessageGroupInfo -> error "TODO: get group info from message"
+  _ -> Left "unexpected message type"
+
+findMessagesInStream :: [RawMLS Message] -> Either Text (CommitBundleF f)
+findMessagesInStream = getAp . foldMap (Ap . findMessageInStream)
+
+instance ParseMLS CommitBundle where
+  parseMLS = parseMLSStream
 
 instance ConvertProtoLens Proto.Mls.CommitBundle CommitBundle where
   fromProtolens protoBundle = protoLabel "CommitBundle" $ do
@@ -56,9 +95,9 @@ instance ConvertProtoLens Proto.Mls.CommitBundle CommitBundle where
         )
       <*> protoLabel "group_info_bundle" (fromProtolens (view Proto.Mls.groupInfoBundle protoBundle))
   toProtolens bundle =
-    let commitData = rmRaw (cbCommitMsg bundle)
-        welcomeData = foldMap rmRaw (cbWelcome bundle)
-        groupInfoData = toProtolens (cbGroupInfoBundle bundle)
+    let commitData = rmRaw bundle.cbCommitMsg
+        welcomeData = foldMap rmRaw bundle.cbWelcome
+        groupInfoData = toProtolens bundle.cbGroupInfoBundle
      in ( Data.ProtoLens.defMessage
             & Proto.Mls.commit .~ commitData
             & Proto.Mls.welcome .~ welcomeData

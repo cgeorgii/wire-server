@@ -454,7 +454,7 @@ testAddUser = do
     traverse_ uploadNewKeyPackage [bob1, bob2]
 
     (_, qcnv) <- setupMLSGroup alice1
-    events <- createAddCommit alice1 [bob] >>= sendAndConsumeCommit
+    events <- createAddCommit alice1 [bob] >>= sendAndConsumeCommitBundle
     event <- assertOne events
     liftIO $ assertJoinEvent qcnv alice [bob] roleNameWireMember event
     pure qcnv

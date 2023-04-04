@@ -945,6 +945,8 @@ sendAndConsumeCommitBundle ::
   MessagePackage ->
   MLSTest [Event]
 sendAndConsumeCommitBundle mp = do
+  traverse_ (traceM . ("welcome: " <>) . show . hex) $ mpWelcome mp
+  traverse_ (traceM . ("groupState: " <>) . show . hex) $ mpPublicGroupState mp
   qcs <- getConvId
   bundle <- createBundle mp
   events <- liftTest $ postCommitBundle (mpSender mp) qcs bundle
