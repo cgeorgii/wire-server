@@ -86,8 +86,8 @@ data Message = Message
 instance ParseMLS Message where
   parseMLS =
     Message
-      <$> traceMLS "version" parseMLS
-      <*> traceMLS "content" parseMLS
+      <$> parseMLS
+      <*> parseMLS
 
 instance SerialiseMLS Message where
   serialiseMLS msg = do
@@ -151,9 +151,9 @@ data PublicMessage = PublicMessage
 
 instance ParseMLS PublicMessage where
   parseMLS = do
-    content <- traceMLS "pub content" parseMLS
+    content <- parseMLS
     authData <- parseFramedContentAuthData (framedContentDataTag (content.rmValue.content))
-    membershipTag <- traceMLS "membership tag" $ case content.rmValue.sender of
+    membershipTag <- case content.rmValue.sender of
       SenderMember _ -> Just <$> parseMLSBytes @VarInt
       _ -> pure Nothing
     pure
@@ -246,11 +246,11 @@ data FramedContent = FramedContent
 instance ParseMLS FramedContent where
   parseMLS =
     FramedContent
-      <$> traceMLS "groupId" parseMLS
-      <*> traceMLS "epoch" parseMLS
-      <*> traceMLS "sender" parseMLS
-      <*> traceMLS "authdata" (parseMLSBytes @VarInt)
-      <*> traceMLS "content" parseMLS
+      <$> parseMLS
+      <*> parseMLS
+      <*> parseMLS
+      <*> parseMLSBytes @VarInt
+      <*> parseMLS
 
 instance SerialiseMLS FramedContent where
   serialiseMLS fc = do
@@ -333,7 +333,7 @@ data FramedContentAuthData = FramedContentAuthData
   deriving (Eq, Show)
 
 parseFramedContentAuthData :: FramedContentDataTag -> Get FramedContentAuthData
-parseFramedContentAuthData tag = traceMLS "authdata" $ do
+parseFramedContentAuthData tag = do
   sig <- parseMLSBytes @VarInt
   confirmationTag <- case tag of
     FramedContentCommitTag -> Just <$> parseMLSBytes @VarInt
