@@ -30,7 +30,7 @@ import Wire.API.Conversation.Typing
 import Wire.API.Error
 import Wire.API.Error.Galley
 import Wire.API.Event.Conversation
-import Wire.API.MLS.PublicGroupState
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.Servant
 import Wire.API.MLS.SubConversation
 import Wire.API.MakesFederatedCall
@@ -178,7 +178,7 @@ type ConversationAPI =
                     ( Respond
                         200
                         "The group information"
-                        OpaquePublicGroupState
+                        GroupInfoData
                     )
            )
     :<|> Named
@@ -491,7 +491,7 @@ type ConversationAPI =
                     ( Respond
                         200
                         "The group information"
-                        OpaquePublicGroupState
+                        GroupInfoData
                     )
            )
     -- This endpoint can lead to the following events being sent:
