@@ -52,6 +52,7 @@
 , http-client-tls
 , http-media
 , http-types
+, http2-manager
 , imports
 , insert-ordered-containers
 , kan-extensions
@@ -180,6 +181,7 @@ mkDerivation {
     http-client-tls
     http-media
     http-types
+    http2-manager
     imports
     insert-ordered-containers
     kan-extensions

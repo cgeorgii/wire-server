@@ -65,6 +65,7 @@
 , http-media
 , http-reverse-proxy
 , http-types
+, http2-manager
 , imports
 , insert-ordered-containers
 , iproute
@@ -220,6 +221,7 @@ mkDerivation {
     http-client-openssl
     http-media
     http-types
+    http2-manager
     imports
     insert-ordered-containers
     iproute
