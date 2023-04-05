@@ -21,6 +21,7 @@
 module Wire.API.MLS.Message
   ( -- * MLS Message types
     Message (..),
+    mkMessage,
     MessageContent (..),
     PublicMessage (..),
     PrivateMessage (..),
@@ -56,12 +57,14 @@ import Wire.API.MLS.Commit
 import Wire.API.MLS.Epoch
 import Wire.API.MLS.Extension
 import Wire.API.MLS.Group
+import Wire.API.MLS.GroupInfo
 import Wire.API.MLS.KeyPackage
 import Wire.API.MLS.LeafNode
 import Wire.API.MLS.Proposal
 import Wire.API.MLS.ProtocolVersion
 import Wire.API.MLS.Serialisation
 import Wire.API.MLS.Welcome
+import Wire.Arbitrary
 
 data WireFormatTag
   = WireFormatPublicTag
@@ -83,6 +86,9 @@ data Message = Message
   }
   deriving (Eq, Show)
 
+mkMessage :: MessageContent -> Message
+mkMessage = Message defaultProtocolVersion
+
 instance ParseMLS Message where
   parseMLS =
     Message
@@ -101,7 +107,7 @@ data MessageContent
   = MessagePrivate (RawMLS PrivateMessage)
   | MessagePublic PublicMessage
   | MessageWelcome (RawMLS Welcome)
-  | MessageGroupInfo -- TODO
+  | MessageGroupInfo (RawMLS GroupInfo)
   | MessageKeyPackage (RawMLS KeyPackage)
   deriving (Eq, Show)
 
@@ -109,7 +115,7 @@ instance HasField "wireFormat" MessageContent WireFormatTag where
   getField (MessagePrivate _) = WireFormatPrivateTag
   getField (MessagePublic _) = WireFormatPublicTag
   getField (MessageWelcome _) = WireFormatWelcomeTag
-  getField MessageGroupInfo = WireFormatGroupInfoTag
+  getField (MessageGroupInfo _) = WireFormatGroupInfoTag
   getField (MessageKeyPackage _) = WireFormatKeyPackageTag
 
 instance ParseMLS MessageContent where
@@ -118,7 +124,7 @@ instance ParseMLS MessageContent where
       WireFormatPrivateTag -> MessagePrivate <$> parseMLS
       WireFormatPublicTag -> MessagePublic <$> parseMLS
       WireFormatWelcomeTag -> MessageWelcome <$> parseMLS
-      WireFormatGroupInfoTag -> pure MessageGroupInfo
+      WireFormatGroupInfoTag -> MessageGroupInfo <$> parseMLS
       WireFormatKeyPackageTag -> MessageKeyPackage <$> parseMLS
 
 instance SerialiseMLS MessageContent where
@@ -131,10 +137,9 @@ instance SerialiseMLS MessageContent where
   serialiseMLS (MessageWelcome welcome) = do
     serialiseMLS WireFormatWelcomeTag
     serialiseMLS welcome
-  serialiseMLS MessageGroupInfo = do
+  serialiseMLS (MessageGroupInfo gi) = do
     serialiseMLS WireFormatGroupInfoTag
-    -- TODO
-    pure ()
+    serialiseMLS gi
   serialiseMLS (MessageKeyPackage kp) = do
     serialiseMLS WireFormatKeyPackageTag
     serialiseMLS kp
@@ -145,6 +150,7 @@ instance S.ToSchema Message where
 data PublicMessage = PublicMessage
   { content :: RawMLS FramedContent,
     authData :: FramedContentAuthData,
+    -- Present iff content.rmValue.sender is of type Member.
     membershipTag :: Maybe ByteString
   }
   deriving (Eq, Show)
@@ -208,6 +214,7 @@ data Sender
   | SenderNewMemberProposal
   | SenderNewMemberCommit
   deriving (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform Sender)
 
 instance ParseMLS Sender where
   parseMLS =
@@ -328,6 +335,7 @@ framedContentTBS ctx msgContent =
 
 data FramedContentAuthData = FramedContentAuthData
   { signature_ :: ByteString,
+    -- Present iff it is part of a commit.
     confirmationTag :: Maybe ByteString
   }
   deriving (Eq, Show)
@@ -377,16 +385,13 @@ mkSignedMessage priv pub gid epoch payload =
             groupContext = Nothing
           }
       sig = BA.convert $ sign priv pub (encodeMLS' tbs)
-   in Message
-        { protocolVersion = defaultProtocolVersion,
-          content =
-            MessagePublic
-              PublicMessage
-                { content = framedContent,
-                  authData = FramedContentAuthData sig Nothing,
-                  membershipTag = Nothing
-                }
-        }
+   in mkMessage $
+        MessagePublic
+          PublicMessage
+            { content = framedContent,
+              authData = FramedContentAuthData sig Nothing,
+              membershipTag = Nothing
+            }
 
 verifyMessageSignature ::
   RawMLS GroupContext ->

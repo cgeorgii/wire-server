@@ -686,7 +686,7 @@ createAddCommitWithKeyPackages ::
 createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
   bd <- State.gets mlsBaseDir
   welcomeFile <- liftIO $ emptyTempFile bd "welcome"
-  pgsFile <- liftIO $ emptyTempFile bd "pgs"
+  giFile <- liftIO $ emptyTempFile bd "gi"
 
   commit <- runContT (traverse (withTempKeyPackageFile . snd) clientsAndKeyPackages) $ \kpFiles ->
     mlscli
@@ -698,7 +698,7 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
           "--welcome-out",
           welcomeFile,
           "--group-info-out",
-          pgsFile,
+          giFile,
           "--group-out",
           "<group-out>"
         ]
@@ -712,13 +712,14 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
       }
 
   welcome <- liftIO $ BS.readFile welcomeFile
-  pgs <- liftIO $ BS.readFile pgsFile
+  gi <- liftIO $ BS.readFile giFile
+  liftIO . putStrLn $ "gi:\n" <> show (hex gi)
   pure $
     MessagePackage
       { mpSender = qcid,
         mpMessage = commit,
         mpWelcome = Just welcome,
-        mpGroupInfo = Just pgs
+        mpGroupInfo = Just gi
       }
 
 createAddProposalWithKeyPackage ::

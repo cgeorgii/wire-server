@@ -180,11 +180,20 @@ instance ParseMLS KeyPackageTBS where
       <*> parseMLS
       <*> parseMLSVector @VarInt parseMLS
 
+instance SerialiseMLS KeyPackageTBS where
+  serialiseMLS tbs = do
+    serialiseMLS tbs.protocolVersion
+    serialiseMLS tbs.cipherSuite
+    serialiseMLS tbs.initKey
+    serialiseMLS tbs.leafNode
+    serialiseMLSVector @VarInt serialiseMLS tbs.extensions
+
 data KeyPackage = KeyPackage
   { tbs :: RawMLS KeyPackageTBS,
     signature_ :: ByteString
   }
-  deriving stock (Eq, Show)
+  deriving stock (Eq, Show, Generic)
+  deriving (Arbitrary) via (GenericUniform KeyPackage)
 
 instance S.ToSchema KeyPackage where
   declareNamedSchema _ = pure (mlsSwagger "KeyPackage")
@@ -220,6 +229,11 @@ instance ParseMLS KeyPackage where
     KeyPackage
       <$> parseRawMLS parseMLS
       <*> parseMLSBytes @VarInt
+
+instance SerialiseMLS KeyPackage where
+  serialiseMLS kp = do
+    serialiseMLS kp.tbs
+    serialiseMLSBytes @VarInt kp.signature_
 
 --------------------------------------------------------------------------------
 
