@@ -33,6 +33,7 @@ import Control.Monad.State (StateT, evalStateT)
 import qualified Control.Monad.State as State
 import Control.Monad.Trans.Maybe
 import Data.Aeson.Lens
+import Data.Bifunctor
 import Data.Binary.Builder (toLazyByteString)
 import qualified Data.ByteArray as BA
 import qualified Data.ByteString as BS
@@ -143,7 +144,7 @@ localPostCommitBundle sender bundle = do
         . zUser (ciUser sender)
         . zClient (ciClient sender)
         . zConn "conn"
-        . Bilge.content "application/x-protobuf"
+        . Bilge.content "message/mls"
         . bytes bundle
     )
 
@@ -713,7 +714,6 @@ createAddCommitWithKeyPackages qcid clientsAndKeyPackages = do
 
   welcome <- liftIO $ BS.readFile welcomeFile
   gi <- liftIO $ BS.readFile giFile
-  liftIO . putStrLn $ "gi:\n" <> show (hex gi)
   pure $
     MessagePackage
       { mpSender = qcid,
@@ -849,8 +849,9 @@ consumeWelcome :: HasCallStack => ByteString -> MLSTest ()
 consumeWelcome welcome = do
   qcids <- State.gets mlsNewMembers
   for_ qcids $ \qcid -> do
+    traceM . show $ qcid
     hasState <- hasClientGroupState qcid
-    liftIO $ assertBool "Existing clients in a conversation should not consume commits" (not hasState)
+    liftIO $ assertBool "Existing clients in a conversation should not consume welcomes" (not hasState)
     void $
       mlscli
         qcid
@@ -926,13 +927,17 @@ sendAndConsumeCommit mp = do
 
 mkBundle :: MessagePackage -> Either Text CommitBundle
 mkBundle mp = do
-  commitB <- decodeMLS' (mpMessage mp)
-  welcomeB <- traverse decodeMLS' (mpWelcome mp)
+  commitB <- first ("Commit: " <>) $ decodeMLS' (mpMessage mp)
+  welcomeB <- first ("Welcome: " <>) $ for (mpWelcome mp) $ \m -> do
+    w <- decodeMLS' @Message m
+    case w.content of
+      MessageWelcome welcomeB -> pure welcomeB
+      _ -> Left "expected welcome"
   ginfo <- note "group info unavailable" (mpGroupInfo mp)
-  ginfoB <- decodeMLS' ginfo
+  ginfoB <- first ("GroupInfo: " <>) $ decodeMLS' ginfo
   pure $ CommitBundle commitB welcomeB ginfoB
 
-createBundle :: MonadIO m => MessagePackage -> m ByteString
+createBundle :: (HasCallStack, MonadIO m) => MessagePackage -> m ByteString
 createBundle mp = do
   bundle <-
     either (liftIO . assertFailure . T.unpack) pure $
@@ -944,8 +949,6 @@ sendAndConsumeCommitBundle ::
   MessagePackage ->
   MLSTest [Event]
 sendAndConsumeCommitBundle mp = do
-  traverse_ (traceM . ("welcome: " <>) . show . hex) $ mpWelcome mp
-  traverse_ (traceM . ("groupState: " <>) . show . hex) $ mpGroupInfo mp
   qcs <- getConvId
   bundle <- createBundle mp
   events <- liftTest $ postCommitBundle (mpSender mp) qcs bundle

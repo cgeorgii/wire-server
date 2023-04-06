@@ -24,6 +24,7 @@ import API.MLS.Util
 import API.Util
 import Bilge hiding (empty, head)
 import Bilge.Assert
+import Brig.Effects.BlacklistStore (exists)
 import Cassandra
 import Control.Applicative
 import Control.Lens (view)
@@ -440,16 +441,14 @@ testAddUserWithBundleIncompleteWelcome = do
           <!! const 400 === statusCode
     liftIO $ Wai.label err @?= "mls-welcome-mismatch"
 
+-- New joiner is not able to join with a welcome message, since open-mls states that the key package does not exists.
+-- Plan: manually test joining with a welcome message and logging all key store accesses.
 testAddUser :: TestM ()
 testAddUser = do
   [alice, bob] <- createAndConnectUsers [Nothing, Nothing]
 
   qcnv <- runMLSTest $ do
     [alice1, bob1, bob2] <- traverse createMLSClient [alice, bob, bob]
-
-    putStrLn $ "alice1: " <> show alice1
-    putStrLn $ "bob1: " <> show bob1
-    putStrLn $ "bob2: " <> show bob2
 
     traverse_ uploadNewKeyPackage [bob1, bob2]
 
