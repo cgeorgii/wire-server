@@ -90,6 +90,7 @@ proposalRef :: CipherSuiteTag -> RawMLS Proposal -> ProposalRef
 proposalRef cs =
   ProposalRef
     . csHash cs proposalContext
+    . flip RawMLS ()
     . rmRaw
 
 data PreSharedKeyTag = ExternalKeyTag | ResumptionKeyTag

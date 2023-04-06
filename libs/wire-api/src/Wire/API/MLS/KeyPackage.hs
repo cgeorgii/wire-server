@@ -149,6 +149,7 @@ kpRef :: CipherSuiteTag -> KeyPackageData -> KeyPackageRef
 kpRef cs =
   KeyPackageRef
     . csHash cs keyPackageContext
+    . flip RawMLS ()
     . kpData
 
 -- | Compute ref of a key package. Return 'Nothing' if the key package cipher
